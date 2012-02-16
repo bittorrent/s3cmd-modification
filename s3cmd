@@ -1043,7 +1043,7 @@ def cmd_sync_remote2remote(args):
                 seq = 0
                 for key in source_list:
                         seq += 1
-                        seq_label = "[%d of %d]" % (seq, remote_count)
+                        seq_label = "[%d of %d]" % (seq, source_count)
 
                         item = source_list[key]
                         src_uri = S3Uri(item['object_uri_str'])
