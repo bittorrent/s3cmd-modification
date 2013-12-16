@@ -76,7 +76,9 @@ class Config(object):
 	reduced_redundancy = False
 	parallel = False
 	workers = 10
-	follow_symlinks=False
+	follow_symlinks = False
+	socket_timeout = 300
+
 
 	## Creating a singleton
 	def __new__(self, configfile = None):

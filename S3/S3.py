@@ -255,7 +255,7 @@ class S3(object):
 		try:
 			file = open(filename, "rb")
 			size = os.stat(filename)[ST_SIZE]
-		except IOError, e:
+		except (IOError, OSError), e:
 			raise InvalidFileError(u"%s: %s" % (unicodise(filename), e.strerror))
 		headers = SortedDict(ignore_case = True)
 		if extra_headers:
@@ -466,6 +466,9 @@ class S3(object):
 		if not headers.has_key('content-length'):
 			headers['content-length'] = body and len(body) or 0
 		try:
+			# "Stringify" all headers
+			for header in headers.keys():
+				headers[header] = str(headers[header])
 			conn = self.get_connection(resource['bucket'])
 			conn.request(method_string, self.format_uri(resource), body, headers)
 			response = {}

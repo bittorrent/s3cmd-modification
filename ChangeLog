@@ -1,9 +1,136 @@
+2011-06-06  Michal Ludvig  <mludvig@logix.net.nz>
+
+===== Migrated to GIT =====
+
+No longer keeping ChangeLog up to date, use git log instead!
+
+Two "official" repositories (both the same content):
+
+* git://github.com/s3tools/s3cmd.git (primary)
+* git://s3tools.git.sourceforge.net/gitroot/s3tools/s3cmd.git
+
+2011-04-11  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* S3/Config.py: Increase socket_timeout from 10 secs to 5 mins.
+
+2011-01-20  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* debian-build.sh, debian/*: Improved Debian packaging files.
+
+2011-01-20  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* debian-build.sh, debian/*: Added Debian packaging files.
+
+2011-01-09  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* Released version 1.0.0
+	  ----------------------
+
+	* S3/PkgInfo.py: Updated to 1.0.0
+	* NEWS: Updated.
+
+2011-01-02  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Improved r457 (Don't crash when file disappears
+	  before checking MD5).
+	* s3cmd, s3cmd.1, format-manpage.pl: Improved --help text
+	  and manpage.
+	* s3cmd: Removed explicit processing of --follow-symlinks
+	  (is cought by the default / main loop).
+
+2010-12-24  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Set 10s socket timeout for read()/write().
+	* s3cmd: Added --(no-)check-md5 for [sync].
+	* run-tests.py, testsuite.tar.gz: Added testsuite for
+	  the above.
+	* NEWS: Document the above.
+	* s3cmd: Don't crash when file disappears before
+	  checking MD5.
+
+2010-12-09  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* Released version 1.0.0-rc2
+	  --------------------------
+
+	* S3/PkgInfo.py: Updated to 1.0.0-rc2
+	* NEWS, TODO, s3cmd.1: Updated.
+
+2010-11-13  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Added support for remote-to-remote sync.
+	  (Based on patch from Sundar Raman - thanks!)
+	* run-tests.py: Testsuite for the above.
+
+2010-11-12  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Fixed typo in "s3cmd du" error path.
+
+2010-11-12  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* format-manpage.pl: new manpage auto-formatter
+	* s3cmd.1: Updated using the above helper script
+	* setup.py: Warn if manpage is too old.
+
+2010-10-27  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* run-tests.py, testsuite.tar.gz: Keep the testsuite in
+	  SVN as a tarball. There's too many "strange" things 
+	  in the directory for it to be kept in SVN.
+
+2010-10-27  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* TODO: Updated.
+	* upload-to-sf.sh: Updated for new SF.net system
+
+2010-10-26  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* Released version 1.0.0-rc1
+	  --------------------------
+
+	* S3/PkgInfo.py: Updated to 1.0.0-rc1
+	* NEWS, TODO: Updated.
+
+2010-10-26  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd, S3/CloudFront.py, S3/Config.py: Added support
+	  for CloudFront DefaultRootObject. Thanks to Luke Andrew.
+
+2010-10-25  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Improved 'fixbucket' command. Thanks to Srinivasa
+	  Moorthy.
+	* s3cmd: Read config file even if User Profile directory on 
+	  Windows contains non-ascii symbols. Thx Slava Vishnyakov
+
+2010-10-25  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd: Don't fail when a local node is a directory
+	  and we expected a file. (as if for example /etc/passwd 
+	  was a dir)
+
+2010-10-25  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* s3cmd, S3/S3.py: Ignore inaccessible (and missing) files
+	  on upload.
+	* run-tests.py: Extended [sync] test to verify correct
+	  handling of inaccessible files.
+	* testsuite/permission-tests: New testsuite files.
+
+2010-10-24  Michal Ludvig  <mludvig@logix.net.nz>
+
+	* S3/S3.py: "Stringify" all headers. Httplib should do
+	  it but some Python 2.7 users reported problems that should
+	  now be fixed.
+	* run-tests.py: Fixed test #6
+
 2010-07-25  Aaron Maxwell  <amax@resymbol.net>
 
-	* S3/Config.py, testsuite/etc/brokenlink.png, testsuite/etc/more/linked-dir, testsuite/etc/more/give-me-more.txt, testsuite/etc/linked.png, testsuite/etc/linked1.png, run-tests.py, s3cmd.1, s3cmd:
-	  Option to follow local symlinks for sync and put (--follow-symlinks option), including tests and documentation
-	* run-tests.py:
-	  --bucket-prefix option, to allow different developers to run tests in their own sandbox
+	* S3/Config.py, testsuite/etc/, run-tests.py, s3cmd.1, s3cmd:
+	  Option to follow local symlinks for sync and 
+	  put (--follow-symlinks option), including tests and documentation
+	* run-tests.py: --bucket-prefix option, to allow different 
+	  developers to run tests in their own sandbox
 
 2010-07-08  Michal Ludvig  <mludvig@logix.net.nz>
 

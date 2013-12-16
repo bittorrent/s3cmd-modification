@@ -22,7 +22,7 @@ import codecs
 import locale
 import subprocess
 import htmlentitydefs
-
+import socket
 import Queue
 import threading
 
@@ -31,9 +31,6 @@ from optparse import OptionParser, Option, OptionValueError, IndentedHelpFormatt
 from logging import debug, info, warning, error
 from distutils.spawn import find_executable
 
-
-
-	
 def output(message):
 	sys.stdout.write(message + "\n")
 
@@ -108,8 +105,8 @@ def subcmd_bucket_usage(s3, uri):
 	try:
 		response = s3.bucket_list(bucket, prefix = object, recursive = True)
 	except S3Error, e:
-		if S3.codes.has_key(e.Code):
-			error(S3.codes[e.Code] % bucket)
+		if S3.codes.has_key(e.info["Code"]):
+			error(S3.codes[e.info["Code"]] % bucket)
 			return
 		else:
 			raise
@@ -912,12 +909,18 @@ def _filelist_filter_exclude_include(src_list):
 			debug(u"PASS: %s" % (file))
 	return src_list, exclude_list
 
-def _compare_filelists(src_list, dst_list, src_is_local_and_dst_is_remote):
+def _compare_filelists(src_list, dst_list, src_remote, dst_remote):
+	def __direction_str(is_remote):
+		return is_remote and "remote" or "local"
+
+	# We don't support local->local sync, use 'rsync' or something like that instead ;-)
+	assert(not(src_remote == False and dst_remote == False))
+
 	info(u"Verifying attributes...")
 	cfg = Config()
 	exists_list = SortedDict(ignore_case = False)
 
-	debug("Comparing filelists (src_is_local_and_dst_is_remote=%s)" % src_is_local_and_dst_is_remote)
+	debug("Comparing filelists (direction: %s -> %s)" % (__direction_str(src_remote), __direction_str(dst_remote)))
 	debug("src_list.keys: %s" % src_list.keys())
 	debug("dst_list.keys: %s" % dst_list.keys())
 
@@ -941,12 +944,24 @@ def _compare_filelists(src_list, dst_list, src_is_local_and_dst_is_remote):
 			
 			if attribs_match and 'md5' in cfg.sync_checks:
 				## ... same size, check MD5
-				if src_is_local_and_dst_is_remote:
-					src_md5 = Utils.hash_file_md5(src_list[file]['full_name'])
-					dst_md5 = dst_list[file]['md5']
-				else:
-					src_md5 = src_list[file]['md5']
-					dst_md5 = Utils.hash_file_md5(dst_list[file]['full_name'])
+				try:
+					if src_remote == False and dst_remote == True:
+						src_md5 = Utils.hash_file_md5(src_list[file]['full_name'])
+						dst_md5 = dst_list[file]['md5']
+					elif src_remote == True and dst_remote == False:
+						src_md5 = src_list[file]['md5']
+						dst_md5 = Utils.hash_file_md5(dst_list[file]['full_name'])
+					elif src_remote == True and dst_remote == True:
+						src_md5 = src_list[file]['md5']
+						dst_md5 = dst_list[file]['md5']
+				except (IOError,OSError), e:
+					# MD5 sum verification failed - ignore that file altogether
+					debug(u"IGNR: %s (disappeared)" % (file))
+					warning(u"%s: file disappeared, ignoring." % (file))
+					del(src_list[file])
+					del(dst_list[file])
+					continue
+
 				if src_md5 != dst_md5:
 					## Checksums are different.
 					attribs_match = False
@@ -963,7 +978,88 @@ def _compare_filelists(src_list, dst_list, src_is_local_and_dst_is_remote):
 
 	return src_list, dst_list, exists_list
 
+def cmd_sync_remote2remote(args):
+	s3 = S3(Config())
+
+	# Normalise s3://uri (e.g. assert trailing slash)
+	destination_base = unicode(S3Uri(args[-1]))
+
+	src_list = fetch_remote_list(args[:-1], recursive = True, require_attribs = True)
+	dst_list = fetch_remote_list(destination_base, recursive = True, require_attribs = True)
+	 
+	src_count = len(src_list)
+	dst_count = len(dst_list)
+
+	info(u"Found %d source files, %d destination files" % (src_count, dst_count))
+
+	src_list, exclude_list = _filelist_filter_exclude_include(src_list)
+
+	src_list, dst_list, existing_list = _compare_filelists(src_list, dst_list, src_remote = True, dst_remote = True)
+
+	src_count = len(src_list)
+	dst_count = len(dst_list)
+
+	print(u"Summary: %d source files to copy, %d files at destination to delete" % (src_count, dst_count))
+
+	if src_count > 0:
+		### Populate 'remote_uri' only if we've got something to sync from src to dst
+		for key in src_list:
+			src_list[key]['target_uri'] = destination_base + key
+
+	if cfg.dry_run:
+		for key in exclude_list:
+			output(u"exclude: %s" % unicodise(key))
+		if cfg.delete_removed:
+			for key in dst_list:
+				output(u"delete: %s" % dst_list[key]['object_uri_str'])
+		for key in src_list:
+			output(u"Sync: %s -> %s" % (src_list[key]['object_uri_str'], src_list[key]['target_uri']))
+		warning(u"Exitting now because of --dry-run")
+		return
+
+	# Delete items in destination that are not in source
+	if cfg.delete_removed:
+		if cfg.dry_run:
+			for key in dst_list:
+				output(u"delete: %s" % dst_list[key]['object_uri_str'])
+		else:
+			for key in dst_list:
+				uri = S3Uri(dst_list[key]['object_uri_str'])
+				s3.object_delete(uri)
+				output(u"deleted: '%s'" % uri)
+	
+	# Perform the synchronization of files
+	timestamp_start = time.time()
+	seq = 0
+	file_list = src_list.keys()
+	file_list.sort()
+	for file in file_list:
+		seq += 1
+		item = src_list[file]
+		src_uri = S3Uri(item['object_uri_str'])
+		dst_uri = S3Uri(item['target_uri'])
+		seq_label = "[%d of %d]" % (seq, src_count)
+		extra_headers = copy(cfg.extra_headers)
+		try:
+			response = s3.object_copy(src_uri, dst_uri, extra_headers)
+			output("File %(src)s copied to %(dst)s" % { "src" : src_uri, "dst" : dst_uri })
+		except S3Error, e:
+			error("File %(src)s could not be copied: %(e)s" % { "src" : src_uri, "e" : e })
+	total_elapsed = time.time() - timestamp_start
+	outstr = "Done. Copied %d files in %0.1f seconds, %0.2f files/s" % (seq, total_elapsed, seq/total_elapsed)
+	if seq > 0:
+		output(outstr)
+	else:
+		info(outstr)
+
 def cmd_sync_remote2local(args):
+	def _parse_attrs_header(attrs_header):
+		attrs = {}
+		for attr in attrs_header.split("/"):
+			key, val = attr.split(":")
+			attrs[key] = val
+		return attrs
+		
 	s3 = S3(Config())
 
 	destination_base = args[-1]
@@ -977,7 +1073,7 @@ def cmd_sync_remote2local(args):
 
 	remote_list, exclude_list = _filelist_filter_exclude_include(remote_list)
 
-	remote_list, local_list, existing_list = _compare_filelists(remote_list, local_list, False)
+	remote_list, local_list, existing_list = _compare_filelists(remote_list, local_list, src_remote = True, dst_remote = False)
 
 	local_count = len(local_list)
 	remote_count = len(remote_list)
@@ -1176,7 +1272,7 @@ def cmd_sync_local2remote(args):
 		# Flush remote_list, by the way
 		remote_list = { local_list.keys()[0] : remote_list_entry }
 
-	local_list, remote_list, existing_list = _compare_filelists(local_list, remote_list, True)
+	local_list, remote_list, existing_list = _compare_filelists(local_list, remote_list, src_remote = False, dst_remote = True)
 
 	local_count = len(local_list)
 	remote_count = len(remote_list)
@@ -1325,6 +1421,8 @@ def cmd_sync(args):
 		return cmd_sync_local2remote(args)
 	if S3Uri(args[0]).type == "s3" and S3Uri(args[-1]).type == "file":
 		return cmd_sync_remote2local(args)
+	if S3Uri(args[0]).type == "s3" and S3Uri(args[-1]).type == "s3":
+		return cmd_sync_remote2remote(args)
 	raise ParameterError("Invalid source/destination: '%s'" % "' '".join(args))
 
 def cmd_setacl(args):
@@ -1465,6 +1563,7 @@ def cmd_fixbucket(args):
 				except KeyError:
 					pass
 			return text # leave as is
+			text = text.encode('ascii', 'xmlcharrefreplace')
 		return re.sub("&#?\w+;", _unescape_fixup, text)
 
 	cfg.urlencoding_mode = "fixbucket"
@@ -1477,6 +1576,7 @@ def cmd_fixbucket(args):
 			raise ParameterError("Expecting S3Uri instead of: %s" % arg)
 		response = s3.bucket_list_noparse(culprit.bucket(), culprit.object(), recursive = True)
 		r_xent = re.compile("&#x[\da-fA-F]+;")
+		response['data'] = unicode(response['data'], 'UTF-8')
 		keys = re.findall("<Key>(.*?)</Key>", response['data'], re.MULTILINE)
 		debug("Keys: %r" % keys)
 		for key in keys:
@@ -1805,7 +1905,7 @@ def main():
 	if os.getenv("HOME"):
 		config_file = os.path.join(os.getenv("HOME"), ".s3cfg")
 	elif os.name == "nt" and os.getenv("USERPROFILE"):
-		config_file = os.path.join(os.getenv("USERPROFILE"), "Application Data", "s3cmd.ini")
+		config_file = os.path.join(os.getenv("USERPROFILE").decode('mbcs'), "Application Data", "s3cmd.ini")
 
 	preferred_encoding = locale.getpreferredencoding() or "UTF-8"
 
@@ -1825,6 +1925,8 @@ def main():
 	optparser.add_option(      "--continue", dest="get_continue", action="store_true", help="Continue getting a partially downloaded file (only for [get] command).")
 	optparser.add_option(      "--skip-existing", dest="skip_existing", action="store_true", help="Skip over files that exist at the destination (only for [get] and [sync] commands).")
 	optparser.add_option("-r", "--recursive", dest="recursive", action="store_true", help="Recursive upload, download or removal.")
+	optparser.add_option(      "--check-md5", dest="check_md5", action="store_true", help="Check MD5 sums when comparing files for [sync]. (default)")
+	optparser.add_option(      "--no-check-md5", dest="check_md5", action="store_false", help="Do not check MD5 sums when comparing files for [sync]. Only size will be compared. May significantly speed up transfer but may also miss some changed files.")
 	optparser.add_option("-P", "--acl-public", dest="acl_public", action="store_true", help="Store objects with ACL allowing read for anyone.")
 	optparser.add_option(      "--acl-private", dest="acl_public", action="store_false", help="Store objects with default ACL allowing access for you only.")
 	optparser.add_option(      "--acl-grant", dest="acl_grants", type="s3acl", action="append", metavar="PERMISSION:EMAIL or USER_CANONICAL_ID", help="Grant stated permission to a given amazon user. Permission is one of: read, write, read_acp, write_acp, full_control, all")
@@ -1867,6 +1969,7 @@ def main():
 	optparser.add_option(      "--cf-add-cname", dest="cf_cnames_add", action="append", metavar="CNAME", help="Add given CNAME to a CloudFront distribution (only for [cfcreate] and [cfmodify] commands)")
 	optparser.add_option(      "--cf-remove-cname", dest="cf_cnames_remove", action="append", metavar="CNAME", help="Remove given CNAME from a CloudFront distribution (only for [cfmodify] command)")
 	optparser.add_option(      "--cf-comment", dest="cf_comment", action="store", metavar="COMMENT", help="Set COMMENT for a given CloudFront distribution (only for [cfcreate] and [cfmodify] commands)")
+	optparser.add_option(      "--cf-default-root-object", dest="cf_default_root_object", action="store", metavar="DEFAULT_ROOT_OBJECT", help="Set the default root object to return when no object is specified in the URL. Use a relative path, i.e. default/index.html instead of /default/index.html or s3://bucket/default/index.html (only for [cfcreate] and [cfmodify] commands)")
 	optparser.add_option("-v", "--verbose", dest="verbosity", action="store_const", const=logging.INFO, help="Enable verbose output.")
 	optparser.add_option("-d", "--debug", dest="verbosity", action="store_const", const=logging.DEBUG, help="Enable debug output.")
 	optparser.add_option(      "--version", dest="show_version", action="store_true", help="Show s3cmd version (%s) and exit." % (PkgInfo.version))
@@ -1881,7 +1984,8 @@ def main():
 		'"buckets" and uploading, downloading and removing '+
 		'"objects" from these buckets.')
 	optparser.epilog = format_commands(optparser.get_prog_name(), commands_list)
-	optparser.epilog += ("\nSee program homepage for more information at\n%s\n" % PkgInfo.url)
+	optparser.epilog += ("\nFor more informations see the progect homepage:\n%s\n" % PkgInfo.url)
+	optparser.epilog += ("\nConsider a donation if you have found s3cmd useful:\n%s/donate\n" % PkgInfo.url)
 
 	(options, args) = optparser.parse_args()
 
@@ -1954,6 +2058,15 @@ def main():
 		for grant in options.acl_revokes:
 			cfg.acl_revokes.append(grant)
 
+	## Process --(no-)check-md5
+	if options.check_md5 == False:
+		try:
+			cfg.sync_checks.remove("md5")
+		except:
+			pass
+	if options.check_md5 == True and cfg.sync_checks.count("md5") == 0:
+		cfg.sync_checks.append("md5")
+
 	## Update Config with other parameters
 	for option in cfg.option_list():
 		try:
@@ -2008,8 +2121,8 @@ def main():
 	cfg.include.extend(patterns_list)
 	cfg.debug_include.update(patterns_textual)
 
-        ## Process --follow-symlinks
-	cfg.update_option("follow_symlinks", options.follow_symlinks)
+	## Set socket read()/write() timeout
+	socket.setdefaulttimeout(cfg.socket_timeout)
 
 	if cfg.encrypt and cfg.gpg_passphrase == "":
 		error(u"Encryption requested but no passphrase set in config file.")
@@ -2119,7 +2232,6 @@ if __name__ == '__main__':
 
 	except KeyboardInterrupt:
 		sys.stderr.write("See ya!\n")
-		
 		sys.exit(1)
 
 	except Exception, e:

@@ -1,7 +1,7 @@
 TODO list for s3cmd project
 ===========================
 
-- For 0.9.9.x
+- Before 1.0.0 (or asap after 1.0.0)
   - Make 'sync s3://bkt/some-filename local/other-filename' work
     (at the moment it'll always download).
   - Enable --exclude for [ls].
@@ -11,20 +11,21 @@ TODO list for s3cmd project
   - Don't let --continue fail if the file is already fully downloaded.
   - Option --mime-type should set mime type with 'cp' and 'mv'. 
     If possible --guess-mime-type should do as well.
-  - Skip files that disapper during upload. Now it fails.
   - Make upload throttling configurable.
-
-- For 1.0.0
+  - Allow removing 'DefaultRootObject' from CloudFront distributions.
+  - Get s3://bucket/non-existent creates empty local file 'non-existent'
   - Add 'geturl' command, both Unicode and urlencoded output.
   - Add a command for generating "Query String Authentication" URLs.
-  - Add a command for setting up access logging.
+  - Support --acl-grant (together with --acl-public/private) for [put] and [sync]
+  - Filter 's3cmd ls' output by --bucket-location=
 
 - After 1.0.0
-  - Speed up upload / download with multiple threads.
-  - Sync should be able to update metadata (UID, timstamps, etc)
-    if only these change (i.e. same content, different metainfo).
   - Sync must backup non-files as well. At least directories, 
     symlinks and device nodes.
+  - Speed up upload / download with multiple threads.
+    (see http://blog.50projects.com/p/s3cmd-modifications.html)
+  - Sync should be able to update metadata (UID, timstamps, etc)
+    if only these change (i.e. same content, different metainfo).
   - If GPG fails error() and exit. If un-GPG fails save the 
     file with .gpg extension.
   - Keep backup files remotely on put/sync-to if requested 
@@ -45,7 +46,7 @@ TODO list for s3cmd project
    call).
   Or we can only compare local timestamps with remote object 
   timestamps. If the local one is older we'll *assume* it 
-  hasn't been changed.
+  hasn't been changed. But what to do about remote2local sync?
 
 - Keep man page up to date and write some more documentation
   - Yeah, right ;-)
