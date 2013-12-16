@@ -77,7 +77,6 @@ class Config(object):
 	parallel = False
 	workers = 10
 	follow_symlinks=False
-	select_dir = False
 
 	## Creating a singleton
 	def __new__(self, configfile = None):
