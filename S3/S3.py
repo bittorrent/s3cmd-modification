@@ -478,11 +478,8 @@ class S3(object):
 		except Exception, e:
 			if retries:
 				warning("Retrying failed request: %s (%s)" % (resource['uri'], e))
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				return self.send_request(request, body, retries - 1)
 			else:
 				raise S3RequestError("Request failed for: %s" % resource['uri'])
@@ -500,11 +497,8 @@ class S3(object):
 			if retries:
 				warning(u"Retrying failed request: %s" % resource['uri'])
 				warning(unicode(e))
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				return self.send_request(request, body, retries - 1)
 			else:
 				raise e
@@ -536,11 +530,8 @@ class S3(object):
 				progress.done("failed")
 			if retries:
 				warning("Retrying failed request: %s (%s)" % (resource['uri'], e))
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				# Connection error -> same throttle value
 				return self.send_file(request, file, labels, throttle, retries - 1)
 			else:
@@ -576,11 +567,8 @@ class S3(object):
 					throttle = throttle and throttle * 5 or 0.01
 				warning("Upload failed: %s (%s)" % (resource['uri'], e))
 				warning("Retrying on lower speed (throttle=%0.2f)" % throttle)
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				# Connection error -> same throttle value
 				return self.send_file(request, file, labels, throttle, retries - 1)
 			else:
@@ -625,11 +613,8 @@ class S3(object):
 			if try_retry:
 				if retries:
 					warning("Upload failed: %s (%s)" % (resource['uri'], S3Error(response)))
-					
-					if self._fail_wait(retries) > 0:
-						warning("Waiting %d sec..." % self._fail_wait(retries))
-						time.sleep(self._fail_wait(retries))
-					
+					warning("Waiting %d sec..." % self._fail_wait(retries))
+					time.sleep(self._fail_wait(retries))
 					return self.send_file(request, file, labels, throttle, retries - 1)
 				else:
 					warning("Too many failures. Giving up on '%s'" % (file.name))
@@ -680,11 +665,8 @@ class S3(object):
 				progress.done("failed")
 			if retries:
 				warning("Retrying failed request: %s (%s)" % (resource['uri'], e))
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				# Connection error -> same throttle value
 				return self.recv_file(request, stream, labels, start_position, retries - 1)
 			else:
@@ -732,11 +714,8 @@ class S3(object):
 				progress.done("failed")
 			if retries:
 				warning("Retrying failed request: %s (%s)" % (resource['uri'], e))
-				
-				if self._fail_wait(retries) > 0:
-					warning("Waiting %d sec..." % self._fail_wait(retries))
-					time.sleep(self._fail_wait(retries))
-				
+				warning("Waiting %d sec..." % self._fail_wait(retries))
+				time.sleep(self._fail_wait(retries))
 				# Connection error -> same throttle value
 				return self.recv_file(request, stream, labels, current_position, retries - 1)
 			else:
