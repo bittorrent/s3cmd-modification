@@ -117,9 +117,9 @@ class Config(object):
 	def update_option(self, option, value):
 		if value is None:
 			return
-        #### Handle environment reference
-        if str(value).startswith("$"):
-            return self.update_option(option, os.getenv(str(value)[1:]))
+	        #### Handle environment reference
+	        if str(value).startswith("$"):
+	            return self.update_option(option, os.getenv(str(value)[1:]))
 		#### Special treatment of some options
 		## verbosity must be known to "logging" module
 		if option == "verbosity":
